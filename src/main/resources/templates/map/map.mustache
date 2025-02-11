@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>대전관광지 사이트</title>
+    <style>
+        /* 전체 페이지 배경색과 기본 스타일 설정 */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #001f3d;  /* 남색 배경색 */
+            color: white;  /* 텍스트 색상 흰색 */
+            display: flex;
+            flex-direction: column;
+            height: 100vh;  /* 전체 화면 높이 설정 */
+        }
+
+        /* 헤더 스타일 */
+        header {
+            background-color: #001f3d;
+            text-align: center;
+            padding: 20px 0;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        /* 레이아웃을 flex로 설정하여 버튼을 오른쪽에 배치 */
+        .map-container {
+            display: flex;
+            flex: 1;  /* 맵 영역이 남은 공간을 모두 차지하게 설정 */
+        }
+
+        /* 지도 영역 스타일 */
+        #map {
+            width: 100%;
+            height: 100%;  /* 나머지 공간을 차지하도록 설정 */
+        }
+
+        /* 버튼을 오른쪽에 배치 */
+        #controls {
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: flex-end;
+            padding: 10px;
+        }
+
+        #addMarkerButton {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+
+        #addMarkerButton:hover {
+            background-color: #0056b3;
+        }
+
+        #addMarkerButton.active {
+            background-color: #28a745;  /* 활성화된 상태는 초록색 */
+        }
+    </style>
+</head>
+<body>
+
+<!-- 상단 헤더 -->
+<header>
+    대전관광지 사이트
+</header>
+
+<!-- 맵과 버튼을 위한 컨테이너 -->
+<div class="map-container">
+    <!-- 지도 영역 -->
+    <div id="map"></div>
+
+    <!-- 버튼 영역 -->
+    <div id="controls">
+        <button id="addMarkerButton">마커</button>
+    </div>
+</div>
+
+<script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey={{kakaoApiKey}}&libraries=services,clusterer,drawing"></script>
+<script>
+    // 지도 생성
+    var container = document.getElementById('map');
+    var options = {
+        center: new kakao.maps.LatLng(36.3504119, 127.3845475), // 대전 좌표
+        level: 3
+    };
+
+    var map = new kakao.maps.Map(container, options);
+
+    // 마커 저장을 위한 배열
+    var markers = [];
+    var isMarkerMode = false;
+
+    // 버튼 클릭 시 마커 추가 기능 토글
+    document.getElementById('addMarkerButton').addEventListener('click', function() {
+        isMarkerMode = !isMarkerMode;
+
+        if (isMarkerMode) {
+            this.textContent = '마커 생성 중...';
+            this.classList.add('active');
+            enableMarkerCreation();
+        } else {
+            this.textContent = '마커 표시';
+            this.classList.remove('active');
+            disableMarkerCreation();
+        }
+    });
+
+    // 마커 생성 활성화
+    function enableMarkerCreation() {
+        kakao.maps.event.addListener(map, 'click', createMarker);
+    }
+
+    // 마커 생성 비활성화
+    function disableMarkerCreation() {
+        kakao.maps.event.removeListener(map, 'click', createMarker);
+    }
+
+    // 마커 생성 함수
+    function createMarker(mouseEvent) {
+        var latlng = mouseEvent.latLng;
+        var marker = new kakao.maps.Marker({
+            position: latlng,
+        });
+        marker.setMap(map);
+        markers.push(marker);
+
+        // 서버로 DTO 형태로 데이터 전송
+        saveMarkerPosition(latlng.getLat(), latlng.getLng());
+    }
+
+    // 마커 위치를 서버로 전송하는 함수 (DTO 기반)
+    function saveMarkerPosition(lat, lng) {
+        fetch('/markers/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ id: null, latitude: lat, longitude: lng }), // DTO 형태로 전송
+        })
+                .then(response => response.json())
+                .then(data => console.log('Marker saved:', data))
+                .catch(error => console.error('Error saving marker:', error));
+    }
+
+    // 저장된 마커 불러오기
+    window.onload = function () {
+        fetch('/markers')
+                .then(response => response.json())
+                .then(data => {
+                    data.forEach(markerData => {
+                        var position = new kakao.maps.LatLng(markerData.latitude, markerData.longitude);
+                        var marker = new kakao.maps.Marker({
+                            position: position
+                        });
+                        marker.setMap(map);
+                        markers.push({ marker: marker, id: markerData.id }); // 마커와 ID 저장
+                        console.log("Marker added at: ", position);
+
+                        // 마커 클릭 시 해당 장소 정보 표시
+                        kakao.maps.event.addListener(marker, 'click', function() {
+                            if (!isMarkerMode) {
+                                fetch(`/markers/${markerData.id}`) // ID를 올바르게 전달
+                                        .then(response => response.json())
+                                        .then(data => {
+                                            var content = `
+                                <div>
+                                    <strong>${data.name}</strong><br>
+                                    ${data.description}
+                                </div>
+                            `;
+                                            var infowindow = new kakao.maps.InfoWindow({
+                                                content: content
+                                            });
+                                            infowindow.open(map, marker);
+                                        })
+                                        .catch(error => console.error('Error fetching marker data:', error));
+                            }
+                        });
+                    });
+                })
+                .catch(error => console.error('Error loading markers:', error));
+    };
+</script>
+
+
+</body>
+</html>
