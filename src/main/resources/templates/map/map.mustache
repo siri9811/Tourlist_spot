@@ -3,21 +3,19 @@
 <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>대전관광지 사이트</title>
+    <title>반려동물 동반 관광지</title>
     <style>
-        /* 전체 페이지 배경색과 기본 스타일 설정 */
         body {
             margin: 0;
             padding: 0;
             font-family: Arial, sans-serif;
-            background-color: #001f3d;  /* 남색 배경색 */
-            color: white;  /* 텍스트 색상 흰색 */
+            background-color: #001f3d;
+            color: white;
             display: flex;
             flex-direction: column;
-            height: 100vh;  /* 전체 화면 높이 설정 */
+            height: 100vh;
         }
 
-        /* 헤더 스타일 */
         header {
             background-color: #001f3d;
             text-align: center;
@@ -26,19 +24,16 @@
             font-weight: bold;
         }
 
-        /* 레이아웃을 flex로 설정하여 버튼을 오른쪽에 배치 */
         .map-container {
             display: flex;
-            flex: 1;  /* 맵 영역이 남은 공간을 모두 차지하게 설정 */
+            flex: 1;
         }
 
-        /* 지도 영역 스타일 */
         #map {
             width: 100%;
-            height: 100%;  /* 나머지 공간을 차지하도록 설정 */
+            height: 100%;
         }
 
-        /* 버튼을 오른쪽에 배치 */
         #controls {
             display: flex;
             flex-direction: column;
@@ -62,56 +57,82 @@
         }
 
         #addMarkerButton.active {
-            background-color: #28a745;  /* 활성화된 상태는 초록색 */
+            background-color: #28a745;
         }
     </style>
 </head>
 <body>
-
-<!-- 상단 헤더 -->
 <header>
     대전관광지 사이트
 </header>
 
-<!-- 맵과 버튼을 위한 컨테이너 -->
 <div class="map-container">
-    <!-- 지도 영역 -->
     <div id="map"></div>
-
-    <!-- 버튼 영역 -->
     <div id="controls">
         <button id="addMarkerButton">마커</button>
     </div>
 </div>
 
+<div id="marker-info-form" style="display: none; position: fixed; top: 50%; right: 200px; transform: translateY(-50%); z-index: 10; background-color: #3f4a64; border: 1px solid #ccc; padding: 20px; width: 450px; height: 500px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); color: white; flex-direction: column; justify-content: center; align-items: center; cursor: move;">
+    <h3 style="margin-bottom: 20px; text-align: center;">장소 정보</h3>
+
+    <form id="markerForm" style="width: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+        <label for="name" style="margin-bottom: 5px;">이름:</label>
+        <input type="text" id="name" name="name" readonly style="width: 80%; margin-bottom: 20px; padding: 10px; text-align: center; border-radius: 5px;">
+
+        <label for="description" style="margin-bottom: 5px;">설명:</label>
+        <textarea id="description" name="description" readonly style="width: 80%; height: 120px; padding: 10px; text-align: center; border-radius: 5px;"></textarea>
+
+        <button type="button" id="editButton" onclick="editMarker()" style="padding: 10px 20px; margin-top: 10px; background-color: #28a745; color: white; border: none; cursor: pointer;">수정</button>
+        <button type="button" id="deleteButton" onclick="deleteMarker()" style="padding: 10px 20px; margin-top: 10px; background-color: #dc3545; color: white; border: none; cursor: pointer;">삭제</button>
+    </form>
+
+    <button type="button" onclick="closeForm()" style="position: absolute; top: 5px; right: 5px; background-color: transparent; border: none; font-size: 20px; cursor: pointer; color: white;">&times;</button>
+</div>
+
+<script>
+    // 드래그 기능
+    var dragElement = document.getElementById("marker-info-form");
+
+    dragElement.onmousedown = function(event) {
+        var offsetX = event.clientX - dragElement.getBoundingClientRect().left;
+        var offsetY = event.clientY - dragElement.getBoundingClientRect().top;
+
+        document.onmousemove = function(event) {
+            var x = event.clientX - offsetX;
+            var y = event.clientY - offsetY;
+            dragElement.style.left = x + "px";
+            dragElement.style.top = y + "px";
+        };
+
+        document.onmouseup = function() {
+            document.onmousemove = null;
+            document.onmouseup = null;
+        };
+    };
+</script>
+
 <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey={{kakaoApiKey}}&libraries=services,clusterer,drawing"></script>
 <script>
-    // 지도 생성
+    // 지도 초기화
     var container = document.getElementById('map');
     var options = {
-        center: new kakao.maps.LatLng(36.3504119, 127.3845475), // 대전 좌표
+        center: new kakao.maps.LatLng(36.3504119, 127.3845475),
         level: 3
     };
-
     var map = new kakao.maps.Map(container, options);
 
-    // 마커 저장을 위한 배열
+    // 전역 변수
     var markers = [];
     var isMarkerMode = false;
+    var currentMarker = null;
 
-    // 버튼 클릭 시 마커 추가 기능 토글
+    // 마커 버튼 이벤트
     document.getElementById('addMarkerButton').addEventListener('click', function() {
         isMarkerMode = !isMarkerMode;
-
-        if (isMarkerMode) {
-            this.textContent = '마커 생성 중...';
-            this.classList.add('active');
-            enableMarkerCreation();
-        } else {
-            this.textContent = '마커 표시';
-            this.classList.remove('active');
-            disableMarkerCreation();
-        }
+        this.textContent = isMarkerMode ? '마커 생성 중...' : '마커 표시';
+        this.classList.toggle('active');
+        isMarkerMode ? enableMarkerCreation() : disableMarkerCreation();
     });
 
     // 마커 생성 활성화
@@ -124,63 +145,195 @@
         kakao.maps.event.removeListener(map, 'click', createMarker);
     }
 
-    // 마커 생성 함수
+    // 마커 생성
     function createMarker(mouseEvent) {
         var latlng = mouseEvent.latLng;
-        var marker = new kakao.maps.Marker({
-            position: latlng,
-        });
-        marker.setMap(map);
-        markers.push(marker);
+        var name = prompt("마커 이름을 입력하세요:");
+        var description = prompt("마커 설명을 입력하세요:");
 
-        // 서버로 DTO 형태로 데이터 전송
-        saveMarkerPosition(latlng.getLat(), latlng.getLng());
+        if (name && description) {
+            var marker = new kakao.maps.Marker({
+                position: latlng
+            });
+            marker.setMap(map);
+            markers.push(marker);
+
+            saveMarkerPosition(latlng.getLat(), latlng.getLng(), name, description);
+        }
     }
 
-    // 마커 위치를 서버로 전송하는 함수 (DTO 기반)
-    function saveMarkerPosition(lat, lng) {
+    // 새 마커 저장 후 처리도 수정
+    function saveMarkerPosition(lat, lng, name, description) {
         fetch('/markers/save', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ id: null, latitude: lat, longitude: lng }), // DTO 형태로 전송
+            body: JSON.stringify({
+                id: null,
+                latitude: lat,
+                longitude: lng,
+                name: name,
+                description: description
+            }),
         })
                 .then(response => response.json())
-                .then(data => console.log('Marker saved:', data))
+                .then(data => {
+                    console.log('Marker saved:', data);
+                    // 저장 성공 후 새로 생성된 마커의 ID를 설정
+                    // markers 배열의 마지막 마커에 ID 설정
+                    if (markers.length > 0) {
+                        markers[markers.length - 1].id = data.id;
+                    }
+                    alert("마커가 저장되었습니다.");
+                })
                 .catch(error => console.error('Error saving marker:', error));
     }
 
-    // 저장된 마커 불러오기
+    // 마커 수정 모드
+    function editMarker() {
+        const nameInput = document.getElementById('name');
+        const descriptionInput = document.getElementById('description');
+        const editButton = document.getElementById('editButton');
+
+        if (editButton.textContent === "수정") {
+            nameInput.readOnly = false;
+            descriptionInput.readOnly = false;
+            editButton.textContent = "저장";
+            editButton.onclick = saveMarker;
+        } else {
+            saveMarker();
+        }
+    }
+
+    // 마커 정보 저장
+    function saveMarker() {
+        const name = document.getElementById('name').value;
+        const description = document.getElementById('description').value;
+
+        if (!currentMarker || !currentMarker.id) {
+            console.error("현재 마커를 찾을 수 없거나 마커 ID가 없습니다:", currentMarker);
+            alert("마커 정보를 찾을 수 없습니다.");
+            return;
+        }
+
+        // 위치 정보도 함께 전송
+        const position = currentMarker.getPosition();
+
+        fetch(`/markers/update/${currentMarker.id}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                id: currentMarker.id,
+                name: name,
+                description: description,
+                latitude: position.getLat(),
+                longitude: position.getLng()
+            }),
+        })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.text().then(text => {
+                            throw new Error(text || '마커 수정 실패');
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Marker updated:', data);
+                    alert("마커가 수정되었습니다.");
+                    closeForm();
+                })
+                .catch(error => {
+                    console.error('Error updating marker:', error);
+                    alert("마커 수정 중 오류가 발생했습니다: " + error.message);
+                });
+    }
+    // 마커 삭제
+    function deleteMarker() {
+        if (!currentMarker) {
+            console.error("삭제할 마커를 찾을 수 없습니다.");
+            return;
+        }
+
+        if (confirm("정말로 이 마커를 삭제하시겠습니까?")) {
+            fetch(`/markers/delete/${currentMarker.id}`, {
+                method: 'DELETE'
+            })
+                    .then(response => {
+                        if (response.ok) {
+                            currentMarker.setMap(null);
+                            markers = markers.filter(marker => marker.id !== currentMarker.id);
+                            alert("마커가 삭제되었습니다.");
+                            closeForm();
+                            location.reload(); // 페이지 새로고침하여 삭제된 마커 반영
+                        } else {
+                            throw new Error('마커 삭제 실패');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error deleting marker:', error);
+                        alert("마커 삭제 중 오류가 발생했습니다.");
+                    });
+        }
+    }
+
+    // 마커 정보 표시 함수도 확인
+    function showForm(data, marker) {
+        const formDiv = document.getElementById('marker-info-form');
+        const nameInput = document.getElementById('name');
+        const descriptionInput = document.getElementById('description');
+        const editButton = document.getElementById('editButton');
+
+        // currentMarker에 마커 객체 저장
+        currentMarker = marker;  // 이미 id 속성이 포함된 마커 객체
+
+        nameInput.value = data.name;
+        descriptionInput.value = data.description;
+
+        nameInput.readOnly = true;
+        descriptionInput.readOnly = true;
+
+        editButton.textContent = "수정";
+        editButton.onclick = editMarker;
+
+        // 디버깅을 위한 로그
+        console.log('Current marker ID:', currentMarker.id);
+
+        formDiv.style.display = 'flex';
+    }
+
+    // 폼 닫기
+    function closeForm() {
+        const formDiv = document.getElementById('marker-info-form');
+        formDiv.style.display = 'none';
+        currentMarker = null;
+    }
+
+    // 저장된 마커 로드 부분을 수정
     window.onload = function () {
         fetch('/markers')
                 .then(response => response.json())
                 .then(data => {
                     data.forEach(markerData => {
                         var position = new kakao.maps.LatLng(markerData.latitude, markerData.longitude);
+                        // 마커 객체에 커스텀 속성으로 id 추가
                         var marker = new kakao.maps.Marker({
                             position: position
                         });
+                        // 마커 객체에 직접 id 속성 추가
+                        marker.id = markerData.id;  // 이 부분이 중요합니다!
                         marker.setMap(map);
-                        markers.push({ marker: marker, id: markerData.id }); // 마커와 ID 저장
-                        console.log("Marker added at: ", position);
+                        markers.push(marker);
 
-                        // 마커 클릭 시 해당 장소 정보 표시
                         kakao.maps.event.addListener(marker, 'click', function() {
                             if (!isMarkerMode) {
-                                fetch(`/markers/${markerData.id}`) // ID를 올바르게 전달
+                                fetch(`/markers/${markerData.id}`)
                                         .then(response => response.json())
                                         .then(data => {
-                                            var content = `
-                                <div>
-                                    <strong>${data.name}</strong><br>
-                                    ${data.description}
-                                </div>
-                            `;
-                                            var infowindow = new kakao.maps.InfoWindow({
-                                                content: content
-                                            });
-                                            infowindow.open(map, marker);
+                                            showForm(data, marker);  // 이제 marker.id가 제대로 전달됨
                                         })
                                         .catch(error => console.error('Error fetching marker data:', error));
                             }
@@ -190,7 +343,5 @@
                 .catch(error => console.error('Error loading markers:', error));
     };
 </script>
-
-
 </body>
 </html>
