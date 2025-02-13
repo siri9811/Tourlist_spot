@@ -17,13 +17,20 @@ public class MarkerDto {
     private double longitude;
     private String name;
     private String description;
+    private String imageUrl;
+    private String tel;
+    private String address;
 
-    public static MarkerDto createMarkerDto(Marker marker) {
+
+    public static MarkerDto from(Marker marker) {
         return new MarkerDto(marker.getId(),
                 marker.getLatitude(),
                 marker.getLongitude(),
                 marker.getName(),
-                marker.getDescription());
+                marker.getDescription(),
+                marker.getImage(),
+                marker.getTel(),
+                marker.getAddress());
     }
 
 
@@ -35,11 +42,9 @@ public class MarkerDto {
         marker.setLongitude(longitude);
         marker.setName(name);
         marker.setDescription(description);
-        // 새로 추가된 필드 (예: address, firstImageUrl, phoneNumber)는 null로 설정
-        marker.setAddr1(null);
-        marker.setAddr2(null);
-        marker.setFirstimage(null);
         marker.setTel(null);
+        marker.setImage(null);
+        marker.setAddress(null);
         return marker;
     }
 

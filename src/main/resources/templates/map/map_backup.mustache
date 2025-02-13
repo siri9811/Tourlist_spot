@@ -73,7 +73,7 @@
     </div>
 </div>
 
-<div id="marker-info-form" style="display: none; position: fixed; top: 50%; right: 200px; transform: translateY(-50%); z-index: 10; background-color: #3f4a64; border: 1px solid #ccc; padding: 20px; width: 550px; height: 1000px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); color: white; flex-direction: column; justify-content: center; align-items: center; cursor: default; user-select: none;">
+<div id="marker-info-form" style="display: none; position: fixed; top: 50%; right: 200px; transform: translateY(-50%); z-index: 10; background-color: #3f4a64; border: 1px solid #ccc; padding: 20px; width: 550px; height: 1000px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); color: white; flex-direction: column; justify-content: center; align-items: center; cursor: move;">
     <h3 style="margin-bottom: 20px; text-align: center;">장소 정보</h3>
 
     <form id="markerForm" style="width: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
@@ -83,15 +83,15 @@
         <label for="description" style="margin-bottom: 5px;">설명:</label>
         <textarea id="description" name="description" readonly style="width: 80%; height: 120px; padding: 10px; text-align: center; border-radius: 5px;"></textarea>
 
+        <!-- 주소 필드 추가 -->
         <label for="address" style="margin-bottom: 5px;">주소:</label>
         <input type="text" id="address" name="address" readonly style="width: 80%; margin-bottom: 20px; padding: 10px; text-align: center; border-radius: 5px;">
 
+        <!-- 전화번호 필드 추가 -->
         <label for="tel" style="margin-bottom: 5px;">전화번호:</label>
         <input type="text" id="tel" name="tel" readonly style="width: 80%; margin-bottom: 20px; padding: 10px; text-align: center; border-radius: 5px;">
 
-        <label for="imageUrl" style="margin-bottom: 5px;">이미지 URL:</label>
-        <input type="text" id="imageUrl" name="imageUrl" readonly style="width: 80%; margin-bottom: 20px; padding: 10px; text-align: center; border-radius: 5px;">
-
+        <!-- 이미지 표시 필드 추가 -->
         <label for="image" style="margin-bottom: 5px;">이미지:</label>
         <img id="image" src="" alt="장소 이미지" style="width: 80%; height: auto; margin-bottom: 20px; border-radius: 5px;">
 
@@ -131,7 +131,7 @@
     var container = document.getElementById('map');
     var options = {
         center: new kakao.maps.LatLng(36.5, 127.5),
-        level: 13
+        level: 0
     };
     var map = new kakao.maps.Map(container, options);
 
@@ -191,9 +191,9 @@
                 longitude: lng,
                 name: name,
                 description: description,
-                addr1: address,
-                tel: tel,
-                imageUrl: imageUrl
+                addr1: address,  // 주소 추가
+                tel: tel,        // 전화번호 추가
+                imageUrl: imageUrl // 이미지 URL 추가
             }),
         })
                 .then(response => response.json())
@@ -207,38 +207,7 @@
                 .catch(error => console.error('Error saving marker:', error));
     }
 
-    // 마커 정보 표시 함수
-    function showForm(data, marker) {
-        const formDiv = document.getElementById('marker-info-form');
-        const nameInput = document.getElementById('name');
-        const descriptionInput = document.getElementById('description');
-        const addressInput = document.getElementById('address');
-        const telInput = document.getElementById('tel');
-        const imageUrlInput = document.getElementById('imageUrl');
-        const imageElement = document.getElementById('image');
-        const editButton = document.getElementById('editButton');
-
-        currentMarker = marker;
-
-        nameInput.value = data.name;
-        descriptionInput.value = data.description || "설명이 없습니다.";
-        addressInput.value = data.addr1 || "주소 정보가 없습니다.";
-        telInput.value = data.tel || "전화번호 정보가 없습니다.";
-        imageUrlInput.value = data.imageUrl || "";
-        imageElement.src = data.imageUrl || "";
-
-        nameInput.readOnly = true;
-        descriptionInput.readOnly = true;
-        addressInput.readOnly = true;
-        telInput.readOnly = true;
-        imageUrlInput.readOnly = true;
-
-        editButton.textContent = "수정";
-
-        formDiv.style.display = 'flex';
-    }
-
-    // 마커 수정 함수
+    // 마커 수정 모드
     function editMarker() {
         if (!currentMarker) {
             alert("수정할 마커가 없습니다.");
@@ -253,28 +222,19 @@
         const editButton = document.getElementById('editButton');
 
         if (editButton.textContent === "수정") {
-            // 수정 모드로 전환
             nameInput.readOnly = false;
             descriptionInput.readOnly = false;
             addressInput.readOnly = false;
             telInput.readOnly = false;
             imageUrlInput.readOnly = false;
             editButton.textContent = "저장";
-
+            editButton.onclick = saveMarker;
         } else {
-            // 저장 모드로 전환
             saveMarker();
-            nameInput.readOnly = true;
-            descriptionInput.readOnly = true;
-            addressInput.readOnly = true;
-            telInput.readOnly = true;
-            imageUrlInput.readOnly = true;
-            editButton.textContent = "수정";
-
         }
     }
 
-    // 마커 저장
+    // 마커 정보 저장
     function saveMarker() {
         const name = document.getElementById('name').value;
         const description = document.getElementById('description').value;
@@ -288,40 +248,35 @@
             return;
         }
 
+        // 위치 정보도 함께 전송
         const position = currentMarker.getPosition();
-
-        // 요청 전 데이터 로깅
-        const requestData = {
-            id: currentMarker.id,
-            name: name,
-            description: description,
-            latitude: position.getLat(),
-            longitude: position.getLng(),
-            addr1: address,
-            tel: tel,
-            imageUrl: imageUrl
-        };
-        console.log('Sending update request with data:', requestData);
 
         fetch(`/markers/update/${currentMarker.id}`, {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json'
             },
-            body: JSON.stringify(requestData),
+            body: JSON.stringify({
+                id: currentMarker.id,
+                name: name,
+                description: description,
+                latitude: position.getLat(),
+                longitude: position.getLng(),
+                addr1: address,
+                tel: tel,
+                imageUrl: imageUrl
+            }),
         })
                 .then(response => {
                     if (!response.ok) {
                         return response.text().then(text => {
-                            console.error('Error response:', text);
                             throw new Error(text || '마커 수정 실패');
                         });
                     }
                     return response.json();
                 })
                 .then(data => {
-                    console.log('Update successful:', data);
+                    console.log('Marker updated:', data);
                     alert("마커가 수정되었습니다.");
                     closeForm();
                 })
@@ -330,7 +285,6 @@
                     alert("마커 수정 중 오류가 발생했습니다: " + error.message);
                 });
     }
-
     // 마커 삭제
     function deleteMarker() {
         if (!currentMarker) {
@@ -348,7 +302,7 @@
                             markers = markers.filter(marker => marker.id !== currentMarker.id);
                             alert("마커가 삭제되었습니다.");
                             closeForm();
-                            location.reload();
+                            location.reload(); // 페이지 새로고침하여 삭제된 마커 반영
                         } else {
                             throw new Error('마커 삭제 실패');
                         }
@@ -360,23 +314,63 @@
         }
     }
 
+    // 마커 정보 표시 함수도 확인
+    // 마커 정보 표시 함수
+    // 마커 정보 표시 함수
+    function showForm(data, marker) {
+        const formDiv = document.getElementById('marker-info-form');
+        const nameInput = document.getElementById('name');
+        const descriptionInput = document.getElementById('description');
+        const addressInput = document.getElementById('address');
+        const telInput = document.getElementById('tel');
+        const imageElement = document.getElementById('image');
+        const editButton = document.getElementById('editButton');
+
+        // currentMarker에 마커 객체 저장
+        currentMarker = marker;  // 이미 id 속성이 포함된 마커 객체
+
+        nameInput.value = data.name;
+        descriptionInput.value = data.description || "설명이 없습니다.";  // 설명이 없다면 기본 텍스트로 처리
+        addressInput.value = data.address || "주소 정보가 없습니다.";  // 주소가 없다면 기본 텍스트로 처리
+        telInput.value = data.tel || "전화번호 정보가 없습니다.";  // 전화번호가 없다면 기본 텍스트로 처리
+        imageElement.src = data.imageUrl || "";  // 이미지가 없으면 빈 문자열 처리
+
+        nameInput.readOnly = true;
+        descriptionInput.readOnly = true;
+        addressInput.readOnly = true;
+        telInput.readOnly = true;
+
+        editButton.textContent = "수정";
+        editButton.onclick = editMarker;
+
+        // 디버깅을 위한 로그
+        console.log('Current marker ID:', currentMarker.id);
+
+        formDiv.style.display = 'flex';
+    }
+
+
+
     // 폼 닫기
     function closeForm() {
         const formDiv = document.getElementById('marker-info-form');
         formDiv.style.display = 'none';
         currentMarker = null;
     }
-    // 저장된 마커 로드
+
+    // 저장된 마커 로드 부분을 수정
     window.onload = function () {
         fetch('/markers')
                 .then(response => response.json())
                 .then(data => {
                     data.forEach(markerData => {
                         var position = new kakao.maps.LatLng(markerData.latitude, markerData.longitude);
+                        // 마커 객체에 커스텀 속성으로 id 추가
                         var marker = new kakao.maps.Marker({
                             position: position
                         });
-                        marker.id = markerData.id;
+                        // 마커 객체에 직접 id 속성 추가
+                        marker.id = markerData.id;  // 이 부분이 중요합니다!
                         marker.setMap(map);
                         markers.push(marker);
 
@@ -385,7 +379,7 @@
                                 fetch(`/markers/${markerData.id}`)
                                         .then(response => response.json())
                                         .then(data => {
-                                            showForm(data, marker);
+                                            showForm(data, marker);  // 이제 marker.id가 제대로 전달됨
                                         })
                                         .catch(error => console.error('Error fetching marker data:', error));
                             }
